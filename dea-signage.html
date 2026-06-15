@@ -1,0 +1,708 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>DEA Formation — Flux Instagram</title>
+<link href="https://fonts.googleapis.com/css2?family=Montserrat:wght@300;400;500;600&display=swap" rel="stylesheet">
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+
+  :root {
+    --gris:    #5B5B5B;
+    --cuivre:  #DB853C;
+    --beige:   #E8DCCB;
+    --noir:    #1a1a1a;
+    --blanc:   #ffffff;
+  }
+
+  html, body {
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+    background: var(--noir);
+    font-family: 'Montserrat', sans-serif;
+    color: var(--blanc);
+  }
+
+  /* ── ÉCRAN DE CONFIG ──────────────────────────────────── */
+  #config-screen {
+    position: fixed;
+    inset: 0;
+    background: var(--noir);
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 28px;
+    padding: 40px;
+    z-index: 100;
+  }
+
+  #config-screen h1 {
+    font-size: 22px;
+    font-weight: 500;
+    color: var(--cuivre);
+    letter-spacing: 0.05em;
+    text-transform: uppercase;
+  }
+
+  #config-screen p {
+    font-size: 14px;
+    color: rgba(255,255,255,0.5);
+    text-align: center;
+    max-width: 400px;
+    line-height: 1.6;
+  }
+
+  .config-field {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    width: 100%;
+    max-width: 440px;
+  }
+
+  .config-field label {
+    font-size: 12px;
+    font-weight: 500;
+    color: rgba(255,255,255,0.5);
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .config-field input {
+    background: rgba(255,255,255,0.07);
+    border: 1px solid rgba(219,133,60,0.35);
+    border-radius: 6px;
+    padding: 12px 16px;
+    font-size: 15px;
+    color: var(--blanc);
+    font-family: 'Montserrat', sans-serif;
+    outline: none;
+    transition: border-color 0.2s;
+  }
+
+  .config-field input:focus {
+    border-color: var(--cuivre);
+  }
+
+  .config-field input::placeholder {
+    color: rgba(255,255,255,0.25);
+  }
+
+  #start-btn {
+    background: var(--cuivre);
+    color: var(--blanc);
+    border: none;
+    border-radius: 6px;
+    padding: 14px 40px;
+    font-size: 14px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    cursor: pointer;
+    transition: opacity 0.2s;
+    font-family: 'Montserrat', sans-serif;
+  }
+  #start-btn:hover { opacity: 0.85; }
+
+  /* ── LECTEUR ──────────────────────────────────────────── */
+  #player {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: var(--noir);
+    flex-direction: column;
+  }
+
+  /* Header fixe */
+  #header {
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 28px 36px 20px;
+    border-bottom: 1px solid rgba(219,133,60,0.2);
+  }
+
+  .logo-area {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  /* Logo SVG origami bird inline */
+  .logo-bird {
+    width: 44px;
+    height: 44px;
+    flex-shrink: 0;
+  }
+
+  .logo-text {
+    display: flex;
+    flex-direction: column;
+    line-height: 1.2;
+  }
+  .logo-text .brand-name {
+    font-size: 13px;
+    font-weight: 600;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+    color: var(--blanc);
+  }
+  .logo-text .brand-sub {
+    font-size: 11px;
+    font-weight: 300;
+    letter-spacing: 0.06em;
+    color: rgba(255,255,255,0.5);
+    text-transform: lowercase;
+  }
+
+  .header-right {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .ig-badge {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    background: rgba(219,133,60,0.12);
+    border: 1px solid rgba(219,133,60,0.3);
+    border-radius: 20px;
+    padding: 6px 14px;
+  }
+
+  .ig-badge svg { width: 16px; height: 16px; flex-shrink: 0; }
+
+  .ig-badge span {
+    font-size: 12px;
+    color: var(--cuivre);
+    font-weight: 500;
+    letter-spacing: 0.04em;
+  }
+
+  #clock {
+    font-size: 28px;
+    font-weight: 300;
+    color: rgba(255,255,255,0.35);
+    letter-spacing: 0.04em;
+    font-variant-numeric: tabular-nums;
+  }
+
+  /* Zone principale */
+  #main {
+    flex: 1;
+    overflow: hidden;
+    position: relative;
+    padding: 28px 36px;
+  }
+
+  /* Slide post */
+  .slide {
+    position: absolute;
+    inset: 28px 36px;
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    opacity: 0;
+    transition: opacity 0.8s ease;
+    pointer-events: none;
+  }
+  .slide.active {
+    opacity: 1;
+    pointer-events: auto;
+  }
+
+  /* Image du post */
+  .post-image-wrap {
+    flex: 1;
+    min-height: 0;
+    border-radius: 8px;
+    overflow: hidden;
+    position: relative;
+    background: rgba(255,255,255,0.04);
+  }
+
+  .post-image-wrap img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+  }
+
+  /* Overlay dégradé bas de l'image */
+  .post-image-wrap::after {
+    content: '';
+    position: absolute;
+    bottom: 0; left: 0; right: 0;
+    height: 40%;
+    background: linear-gradient(to top, rgba(26,26,26,0.7) 0%, transparent 100%);
+    pointer-events: none;
+  }
+
+  /* Bloc texte */
+  .post-caption {
+    flex-shrink: 0;
+    background: rgba(255,255,255,0.04);
+    border: 1px solid rgba(255,255,255,0.07);
+    border-left: 3px solid var(--cuivre);
+    border-radius: 0 6px 6px 0;
+    padding: 18px 20px;
+    max-height: 160px;
+    overflow: hidden;
+  }
+
+  .post-caption-text {
+    font-size: 15px;
+    font-weight: 300;
+    line-height: 1.65;
+    color: rgba(255,255,255,0.82);
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .post-meta {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-top: 10px;
+  }
+
+  .post-date {
+    font-size: 11px;
+    color: rgba(255,255,255,0.3);
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .post-type-badge {
+    font-size: 10px;
+    letter-spacing: 0.1em;
+    text-transform: uppercase;
+    color: var(--cuivre);
+    font-weight: 500;
+  }
+
+  /* Footer barre de progression */
+  #footer {
+    flex-shrink: 0;
+    padding: 0 36px 28px;
+  }
+
+  .progress-dots {
+    display: flex;
+    gap: 6px;
+    justify-content: center;
+    margin-bottom: 14px;
+  }
+
+  .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: rgba(255,255,255,0.18);
+    transition: background 0.3s;
+  }
+  .dot.active {
+    background: var(--cuivre);
+    width: 22px;
+    border-radius: 3px;
+  }
+
+  .progress-bar-track {
+    width: 100%;
+    height: 2px;
+    background: rgba(255,255,255,0.08);
+    border-radius: 1px;
+    overflow: hidden;
+  }
+
+  #progress-fill {
+    height: 100%;
+    background: var(--cuivre);
+    border-radius: 1px;
+    width: 0%;
+    transition: width linear;
+  }
+
+  /* ── ÉTAT CHARGEMENT / ERREUR ─────────────────────────── */
+  #loading-state {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 16px;
+    background: var(--noir);
+  }
+
+  .spinner {
+    width: 36px;
+    height: 36px;
+    border: 2px solid rgba(219,133,60,0.2);
+    border-top-color: var(--cuivre);
+    border-radius: 50%;
+    animation: spin 0.9s linear infinite;
+  }
+  @keyframes spin { to { transform: rotate(360deg); } }
+
+  #loading-state p {
+    font-size: 13px;
+    color: rgba(255,255,255,0.35);
+    letter-spacing: 0.05em;
+  }
+
+  #error-msg {
+    display: none;
+    position: absolute;
+    inset: 0;
+    background: var(--noir);
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    text-align: center;
+    padding: 40px;
+  }
+
+  #error-msg h2 {
+    font-size: 16px;
+    font-weight: 500;
+    color: #e07070;
+  }
+
+  #error-msg p {
+    font-size: 13px;
+    color: rgba(255,255,255,0.4);
+    line-height: 1.6;
+    max-width: 340px;
+  }
+
+  #error-msg code {
+    font-size: 11px;
+    background: rgba(255,255,255,0.06);
+    padding: 8px 14px;
+    border-radius: 4px;
+    color: rgba(255,255,255,0.5);
+    word-break: break-all;
+    max-width: 360px;
+  }
+
+  #retry-btn {
+    background: transparent;
+    border: 1px solid rgba(219,133,60,0.5);
+    color: var(--cuivre);
+    padding: 10px 24px;
+    border-radius: 6px;
+    font-size: 13px;
+    cursor: pointer;
+    font-family: 'Montserrat', sans-serif;
+    margin-top: 8px;
+    transition: background 0.2s;
+  }
+  #retry-btn:hover { background: rgba(219,133,60,0.1); }
+
+  /* Hexagone décoratif (langage visuel DEA) */
+  .hex-deco {
+    position: absolute;
+    bottom: -60px;
+    right: -40px;
+    width: 180px;
+    height: 180px;
+    opacity: 0.04;
+    pointer-events: none;
+  }
+</style>
+</head>
+<body>
+
+<!-- ══════════════════════════════════════════════════════
+     ÉCRAN DE CONFIGURATION
+══════════════════════════════════════════════════════ -->
+<div id="config-screen">
+  <h1>DEA Signage</h1>
+
+  <div class="config-field">
+    <label>Token d'accès Instagram (Graph API)</label>
+    <input type="password" id="input-token" placeholder="EAAxxxxxxxxxxxx..." autocomplete="off">
+  </div>
+
+  <div class="config-field">
+    <label>Instagram User ID (Business)</label>
+    <input type="text" id="input-userid" placeholder="17841400000000000" autocomplete="off">
+  </div>
+
+  <p>Renseigne ton token long-lived et l'ID du compte Instagram Business. Ces données restent en mémoire locale uniquement et ne sont jamais envoyées ailleurs qu'à l'API Meta.</p>
+
+  <button id="start-btn" onclick="startSignage()">Lancer l'affichage</button>
+</div>
+
+<!-- ══════════════════════════════════════════════════════
+     LECTEUR
+══════════════════════════════════════════════════════ -->
+<div id="player">
+
+  <!-- Header -->
+  <div id="header">
+    <div class="logo-area">
+      <!-- Bird origami SVG DEA -->
+      <svg class="logo-bird" viewBox="0 0 44 44" fill="none" xmlns="http://www.w3.org/2000/svg">
+        <polygon points="22,4 38,20 22,16" fill="#DB853C"/>
+        <polygon points="22,4 6,20 22,16" fill="#ffffff" opacity="0.85"/>
+        <polygon points="6,20 22,16 22,36" fill="#DB853C" opacity="0.7"/>
+        <polygon points="38,20 22,16 22,36" fill="#ffffff" opacity="0.5"/>
+        <polygon points="22,36 14,42 22,30" fill="#DB853C" opacity="0.9"/>
+        <polygon points="18,8 10,14 16,18" fill="#ffffff" opacity="0.3"/>
+      </svg>
+      <div class="logo-text">
+        <span class="brand-name">DEA Formation</span>
+        <span class="brand-sub">le puy business school</span>
+      </div>
+    </div>
+
+    <div class="header-right">
+      <div class="ig-badge">
+        <svg viewBox="0 0 24 24" fill="none" stroke="#DB853C" stroke-width="1.5">
+          <rect x="2" y="2" width="20" height="20" rx="5" ry="5"/>
+          <circle cx="12" cy="12" r="4"/>
+          <circle cx="17.5" cy="6.5" r="1" fill="#DB853C" stroke="none"/>
+        </svg>
+        <span id="ig-handle">@dealepuybusinessschool</span>
+      </div>
+      <div id="clock">--:--</div>
+    </div>
+  </div>
+
+  <!-- Zone principale -->
+  <div id="main">
+    <!-- Loading -->
+    <div id="loading-state">
+      <div class="spinner"></div>
+      <p>Récupération des posts…</p>
+    </div>
+
+    <!-- Erreur -->
+    <div id="error-msg">
+      <h2>Impossible de charger les posts</h2>
+      <p id="error-detail">Vérifie le token et l'User ID Instagram, puis relance.</p>
+      <code id="error-code"></code>
+      <button id="retry-btn" onclick="location.reload()">Réessayer</button>
+    </div>
+
+    <!-- Slides (générées dynamiquement) -->
+    <div id="slides-container"></div>
+
+    <!-- Hexagone décoratif -->
+    <svg class="hex-deco" viewBox="0 0 180 180">
+      <polygon points="90,10 160,50 160,130 90,170 20,130 20,50"
+               fill="none" stroke="#DB853C" stroke-width="2"/>
+    </svg>
+  </div>
+
+  <!-- Footer -->
+  <div id="footer">
+    <div class="progress-dots" id="dots-container"></div>
+    <div class="progress-bar-track">
+      <div id="progress-fill"></div>
+    </div>
+  </div>
+
+</div>
+
+<script>
+// ════════════════════════════════════════════════════════
+// CONFIG
+// ════════════════════════════════════════════════════════
+const MAX_POSTS    = 8;
+const SLIDE_MS     = 6000;   // durée par slide en ms
+const REFRESH_MS   = 5 * 60 * 1000; // rafraîchissement toutes les 5 min
+
+let posts       = [];
+let currentIdx  = 0;
+let slideTimer  = null;
+let progressTimer = null;
+let accessToken = '';
+let userId      = '';
+
+// ── Horloge ─────────────────────────────────────────────
+function updateClock() {
+  const now = new Date();
+  const h = String(now.getHours()).padStart(2, '0');
+  const m = String(now.getMinutes()).padStart(2, '0');
+  document.getElementById('clock').textContent = h + ':' + m;
+}
+setInterval(updateClock, 1000);
+updateClock();
+
+// ── Lancement depuis l'écran config ─────────────────────
+function startSignage() {
+  accessToken = document.getElementById('input-token').value.trim();
+  userId      = document.getElementById('input-userid').value.trim();
+
+  if (!accessToken || !userId) {
+    alert('Renseigne le token et l\'User ID Instagram.');
+    return;
+  }
+
+  document.getElementById('config-screen').style.display = 'none';
+  document.getElementById('player').style.display = 'flex';
+
+  fetchPosts();
+  setInterval(fetchPosts, REFRESH_MS);
+}
+
+// ── Appel API Instagram Graph ────────────────────────────
+async function fetchPosts() {
+  showLoading(true);
+  hideError();
+
+  const fields = 'id,caption,media_type,media_url,thumbnail_url,timestamp';
+  const url = `https://graph.instagram.com/${userId}/media?fields=${fields}&limit=${MAX_POSTS}&access_token=${accessToken}`;
+
+  try {
+    const resp = await fetch(url);
+    const data = await resp.json();
+
+    if (data.error) {
+      throw new Error(data.error.message + ' (code ' + data.error.code + ')');
+    }
+
+    posts = (data.data || []).filter(p =>
+      p.media_type === 'IMAGE' || p.media_type === 'CAROUSEL_ALBUM' || p.media_type === 'VIDEO'
+    );
+
+    if (posts.length === 0) {
+      throw new Error('Aucun post disponible sur ce compte.');
+    }
+
+    showLoading(false);
+    buildSlides();
+    startCarousel();
+
+  } catch (err) {
+    showLoading(false);
+    showError('Erreur API Instagram', err.message);
+  }
+}
+
+// ── Construction des slides ──────────────────────────────
+function buildSlides() {
+  const container = document.getElementById('slides-container');
+  container.innerHTML = '';
+
+  const dotsContainer = document.getElementById('dots-container');
+  dotsContainer.innerHTML = '';
+
+  posts.forEach((post, i) => {
+    const slide = document.createElement('div');
+    slide.className = 'slide' + (i === 0 ? ' active' : '');
+    slide.id = 'slide-' + i;
+
+    const imgUrl  = post.media_url || post.thumbnail_url || '';
+    const caption = post.caption   || '';
+    const date    = formatDate(post.timestamp);
+    const type    = typeLabel(post.media_type);
+
+    slide.innerHTML = `
+      <div class="post-image-wrap">
+        <img src="${escHtml(imgUrl)}" alt="Post Instagram ${i + 1}" loading="lazy">
+      </div>
+      <div class="post-caption">
+        <div class="post-caption-text">${escHtml(caption)}</div>
+        <div class="post-meta">
+          <span class="post-date">${date}</span>
+          <span class="post-type-badge">${type}</span>
+        </div>
+      </div>
+    `;
+
+    container.appendChild(slide);
+
+    // Dot
+    const dot = document.createElement('div');
+    dot.className = 'dot' + (i === 0 ? ' active' : '');
+    dot.id = 'dot-' + i;
+    dotsContainer.appendChild(dot);
+  });
+}
+
+// ── Carousel ─────────────────────────────────────────────
+function startCarousel() {
+  currentIdx = 0;
+  clearInterval(slideTimer);
+  clearInterval(progressTimer);
+  showSlide(0);
+  slideTimer = setInterval(nextSlide, SLIDE_MS);
+}
+
+function showSlide(idx) {
+  // Slides
+  document.querySelectorAll('.slide').forEach((s, i) => {
+    s.classList.toggle('active', i === idx);
+  });
+  // Dots
+  document.querySelectorAll('.dot').forEach((d, i) => {
+    d.classList.toggle('active', i === idx);
+  });
+  // Progress bar
+  animateProgress();
+}
+
+function nextSlide() {
+  currentIdx = (currentIdx + 1) % posts.length;
+  showSlide(currentIdx);
+}
+
+function animateProgress() {
+  const fill = document.getElementById('progress-fill');
+  fill.style.transition = 'none';
+  fill.style.width = '0%';
+  // Forcer le reflow
+  void fill.offsetWidth;
+  fill.style.transition = `width ${SLIDE_MS}ms linear`;
+  fill.style.width = '100%';
+}
+
+// ── Utilitaires ──────────────────────────────────────────
+function formatDate(ts) {
+  if (!ts) return '';
+  const d = new Date(ts);
+  return d.toLocaleDateString('fr-FR', { day: 'numeric', month: 'long', year: 'numeric' });
+}
+
+function typeLabel(type) {
+  if (type === 'VIDEO') return '▶ Vidéo';
+  if (type === 'CAROUSEL_ALBUM') return '⊞ Carrousel';
+  return '◻ Photo';
+}
+
+function escHtml(str) {
+  return String(str)
+    .replace(/&/g, '&amp;')
+    .replace(/"/g, '&quot;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;');
+}
+
+function showLoading(show) {
+  document.getElementById('loading-state').style.display = show ? 'flex' : 'none';
+}
+
+function showError(title, detail) {
+  const el = document.getElementById('error-msg');
+  el.style.display = 'flex';
+  document.getElementById('error-detail').textContent = detail;
+}
+
+function hideError() {
+  document.getElementById('error-msg').style.display = 'none';
+}
+</script>
+</body>
+</html>
