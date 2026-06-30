@@ -128,7 +128,12 @@
 <script>
 const SLIDE_MS = 6000, REFRESH_MS = 5*60*1000;
 const RSS_FEED_URL = 'https://rss.app/feeds/C7uSDd67PJYX8W30.xml';
-const RSS_PROXY = 'https://api.allorigins.win/raw?url=';
+// Plusieurs proxys CORS en fallback, au cas où l'un serait temporairement indisponible
+const RSS_PROXIES = [
+  url => 'https://api.codetabs.com/v1/proxy?quest=' + encodeURIComponent(url),
+  url => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
+  url => 'https://corsproxy.io/?url=' + encodeURIComponent(url)
+];
 let posts = [], currentIdx = 0, slideTimer = null;
 
 function updateClock() {
@@ -187,9 +192,32 @@ function startSignage() {
 }
 
 async function fetchPosts() {
+  let xmlText = null;
+  let lastError = null;
+
+  // Essaie chaque proxy dans l'ordre jusqu'à ce qu'un fonctionne
+  for (const buildProxyUrl of RSS_PROXIES) {
+    try {
+      const resp = await fetch(buildProxyUrl(RSS_FEED_URL));
+      if (!resp.ok) throw new Error('HTTP ' + resp.status);
+      const text = await resp.text();
+      if (!text || text.trim().length < 50) throw new Error('Réponse vide');
+      xmlText = text;
+      break;
+    } catch (err) {
+      lastError = err;
+      continue;
+    }
+  }
+
+  if (!xmlText) {
+    document.getElementById('error-msg').style.display='flex';
+    document.getElementById('error-detail').textContent =
+      'Aucun proxy CORS disponible actuellement (' + (lastError?.message || 'erreur réseau') + '). Nouvelle tentative dans 5 min.';
+    return;
+  }
+
   try {
-    const resp = await fetch(RSS_PROXY + encodeURIComponent(RSS_FEED_URL));
-    const xmlText = await resp.text();
     const parser = new DOMParser();
     const xml = parser.parseFromString(xmlText, 'text/xml');
 
