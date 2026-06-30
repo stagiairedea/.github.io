@@ -56,7 +56,7 @@
   .ig-badge { display:flex; align-items:center; gap:8px; background:rgba(219,133,60,0.1); border:1px solid rgba(219,133,60,0.28); border-radius:20px; padding:6px 14px; }
   .ig-badge svg { width:16px; height:16px; flex-shrink:0; }
   .ig-badge span { font-size:12px; color:var(--cuivre); font-weight:500; letter-spacing:0.04em; }
-  #clock { font-size:28px; font-weight:300; color:rgba(255,255,255,0.3); letter-spacing:0.04em; font-variant-numeric:tabular-nums; }
+  #clock { font-size:28px; font-weight:300; color:rgba(ffffff); letter-spacing:0.04em; font-variant-numeric:tabular-nums; }
 
   #main { flex:1; overflow:hidden; position:relative; padding:28px 36px; }
   #slides-container { position:absolute; inset:0; }
@@ -161,12 +161,14 @@
 
 <script>
 const SLIDE_MS = 6000, REFRESH_MS = 5*60*1000;
+const CLOUDFLARE_WORKER_URL = 'https://dea-rss-proxy.stagiaire.workers.dev/';
 const RSS_FEED_URL = 'https://rss.app/feeds/C7uSDd67PJYX8W30.xml';
-// Plusieurs proxys CORS en fallback, au cas où l'un serait temporairement indisponible
+// Le Worker Cloudflare (fiable, sous notre contrôle) est utilisé en priorité.
+// Les proxys publics restent en secours uniquement si jamais le Worker est indisponible.
 const RSS_PROXIES = [
-  url => 'https://proxy.corsfix.com/?' + url,
+  () => CLOUDFLARE_WORKER_URL,
   url => 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url),
-  url => 'https://thingproxy.freeboard.io/fetch/' + url
+  url => 'https://proxy.corsfix.com/?' + url
 ];
 let posts = [], currentIdx = 0, slideTimer = null;
 
