@@ -24,6 +24,24 @@
   .btn-demo { background:transparent; border:1px solid rgba(219,133,60,0.4); color:var(--cuivre); border-radius:6px; padding:12px 40px; font-size:13px; font-weight:500; letter-spacing:0.06em; text-transform:uppercase; cursor:pointer; font-family:'Montserrat',sans-serif; width:100%; transition:background 0.2s; }
   .btn-demo:hover { background:rgba(219,133,60,0.08); }
   .separator { font-size:11px; color:rgba(255,255,255,0.2); letter-spacing:0.1em; text-transform:uppercase; }
+  .btn-manage { background:transparent; border:none; color:rgba(255,255,255,0.35); font-size:12px; cursor:pointer; font-family:'Montserrat',sans-serif; text-decoration:underline; margin-top:4px; }
+  .btn-manage:hover { color:rgba(255,255,255,0.6); }
+
+  /* ── PANNEAU GESTION REELS ── */
+  #reels-manager { display:none; position:fixed; inset:0; background:var(--noir); z-index:150; flex-direction:column; padding:40px; overflow-y:auto; }
+  #reels-manager.open { display:flex; }
+  #reels-manager h2 { font-size:18px; color:var(--cuivre); letter-spacing:0.04em; margin-bottom:6px; }
+  #reels-manager .sub { font-size:12px; color:rgba(255,255,255,0.4); margin-bottom:24px; max-width:520px; line-height:1.6; }
+  #reel-input-row { display:flex; gap:10px; max-width:520px; margin-bottom:24px; }
+  #reel-url-input { flex:1; background:rgba(255,255,255,0.07); border:1px solid rgba(219,133,60,0.35); border-radius:6px; padding:11px 14px; font-size:13px; color:var(--blanc); font-family:'Montserrat',sans-serif; outline:none; }
+  #reel-url-input:focus { border-color:var(--cuivre); }
+  #add-reel-btn { background:var(--cuivre); color:var(--blanc); border:none; border-radius:6px; padding:0 22px; font-size:12px; font-weight:600; text-transform:uppercase; letter-spacing:0.06em; cursor:pointer; font-family:'Montserrat',sans-serif; }
+  #reels-list { display:flex; flex-direction:column; gap:10px; max-width:520px; margin-bottom:28px; }
+  .reel-item { display:flex; align-items:center; justify-content:space-between; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.08); border-radius:6px; padding:10px 14px; font-size:12px; color:rgba(255,255,255,0.7); }
+  .reel-item span { overflow:hidden; text-overflow:ellipsis; white-space:nowrap; max-width:380px; }
+  .reel-remove { background:none; border:none; color:#e07070; cursor:pointer; font-size:16px; padding:0 6px; }
+  #reels-manager-close { align-self:flex-start; background:transparent; border:1px solid rgba(219,133,60,0.4); color:var(--cuivre); border-radius:6px; padding:10px 24px; font-size:12px; cursor:pointer; font-family:'Montserrat',sans-serif; }
+  #reel-status { font-size:11px; color:rgba(255,255,255,0.35); margin-top:-14px; margin-bottom:20px; max-width:520px; }
 
   #demo-banner { display:none; position:fixed; top:0; left:0; right:0; background:rgba(219,133,60,0.15); border-bottom:1px solid rgba(219,133,60,0.3); text-align:center; padding:6px; font-size:11px; color:var(--cuivre); letter-spacing:0.08em; text-transform:uppercase; z-index:50; }
 
@@ -38,7 +56,7 @@
   .ig-badge { display:flex; align-items:center; gap:8px; background:rgba(219,133,60,0.1); border:1px solid rgba(219,133,60,0.28); border-radius:20px; padding:6px 14px; }
   .ig-badge svg { width:16px; height:16px; flex-shrink:0; }
   .ig-badge span { font-size:12px; color:var(--cuivre); font-weight:500; letter-spacing:0.04em; }
-  #clock { font-size:28px; font-weight:300; color:rgba(ffffff); letter-spacing:0.04em; font-variant-numeric:tabular-nums; }
+  #clock { font-size:28px; font-weight:300; color:rgba(255,255,255,0.3); letter-spacing:0.04em; font-variant-numeric:tabular-nums; }
 
   #main { flex:1; overflow:hidden; position:relative; padding:28px 36px; }
   #slides-container { position:absolute; inset:0; }
@@ -77,6 +95,20 @@
     <span class="separator">ou</span>
     <button class="btn-demo" onclick="startDemo()">Mode démo (photos locales)</button>
   </div>
+  <button class="btn-manage" onclick="openReelsManager()">⛶ Gérer les Reels (vidéos)</button>
+</div>
+
+<!-- PANNEAU DE GESTION DES REELS -->
+<div id="reels-manager">
+  <h2>Gérer les Reels</h2>
+  <p class="sub">Colle l'URL d'un Reel Instagram (ex: instagram.com/reel/XXXXX) pour qu'il s'affiche avec sa vraie vidéo en lecture automatique dans le carousel, mélangé aux photos du flux RSS. Mise à jour manuelle à chaque nouveau Reel publié.</p>
+  <div id="reel-input-row">
+    <input type="text" id="reel-url-input" placeholder="https://www.instagram.com/reel/...">
+    <button id="add-reel-btn" onclick="addReel()">Ajouter</button>
+  </div>
+  <p id="reel-status"></p>
+  <div id="reels-list"></div>
+  <button id="reels-manager-close" onclick="closeReelsManager()">Fermer</button>
 </div>
 
 <div id="demo-banner">Mode démo</div>
@@ -251,24 +283,46 @@ function buildSlides(isDemo) {
   const container=document.getElementById('slides-container');
   const dots=document.getElementById('dots-container');
   container.innerHTML=''; dots.innerHTML='';
-  posts.forEach((post,i)=>{
+
+  // Construit la liste combinée : posts RSS (photos) + Reels (vidéos natives)
+  const combined = [];
+  posts.forEach(p => combined.push({ kind: 'rss', data: p }));
+  loadReels().forEach(url => combined.push({ kind: 'reel', data: url }));
+
+  combined.forEach((entry, i) => {
     const slide=document.createElement('div');
     slide.className='slide'+(i===0?' active':'');
-    const src=isDemo?post.img:post.media_url;
-    slide.innerHTML=`
-      <div class="post-image-wrap"><img src="${src}" alt="Post ${i+1}" loading="lazy"></div>
-      <div class="post-caption">
-        <div class="post-caption-text">${escHtml(post.caption||'')}</div>
-        <div class="post-meta">
-          <span class="post-date">${formatDate(post.timestamp)}</span>
-          <span class="post-type-badge">${typeLabel(post.media_type)}</span>
-        </div>
-      </div>`;
+
+    if (entry.kind === 'reel') {
+      slide.innerHTML = `<div class="post-image-wrap" style="display:flex;align-items:center;justify-content:center;background:#000;">${buildReelEmbedHtml(entry.data)}</div>`;
+    } else {
+      const post = entry.data;
+      const src = isDemo ? post.img : post.media_url;
+      slide.innerHTML=`
+        <div class="post-image-wrap"><img src="${src}" alt="Post ${i+1}" loading="lazy"></div>
+        <div class="post-caption">
+          <div class="post-caption-text">${escHtml(post.caption||'')}</div>
+          <div class="post-meta">
+            <span class="post-date">${formatDate(post.timestamp)}</span>
+            <span class="post-type-badge">${typeLabel(post.media_type)}</span>
+          </div>
+        </div>`;
+    }
     container.appendChild(slide);
     const dot=document.createElement('div');
     dot.className='dot'+(i===0?' active':'');
     dots.appendChild(dot);
   });
+
+  // Charge et traite les embeds Instagram (Reels) après insertion dans le DOM
+  if (loadReels().length > 0) {
+    loadInstagramEmbedScript().then(() => {
+      setTimeout(processInstagramEmbeds, 200);
+    });
+  }
+
+  // posts devient la liste combinée pour que le carousel boucle sur tout
+  posts = combined.map(e => e.kind === 'rss' ? e.data : { __reel: true });
 }
 
 function startCarousel(){
@@ -296,6 +350,111 @@ function formatDate(ts){
 }
 function typeLabel(t){ if(t==='VIDEO')return'▶ Vidéo'; if(t==='CAROUSEL_ALBUM')return'⊞ Carrousel'; return'◻ Photo'; }
 function escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+// ════════════════════════════════════════════════════════
+// GESTION DES REELS (embed natif Instagram, sans API/token)
+// ════════════════════════════════════════════════════════
+const REELS_STORAGE_KEY = 'dea-signage-reels';
+let savedReels = [];
+
+function loadReels() {
+  try {
+    const raw = localStorage.getItem(REELS_STORAGE_KEY);
+    savedReels = raw ? JSON.parse(raw) : [];
+  } catch (e) { savedReels = []; }
+  return savedReels;
+}
+
+function persistReels() {
+  localStorage.setItem(REELS_STORAGE_KEY, JSON.stringify(savedReels));
+}
+
+function openReelsManager() {
+  loadReels();
+  renderReelsList();
+  document.getElementById('reels-manager').classList.add('open');
+}
+
+function closeReelsManager() {
+  document.getElementById('reels-manager').classList.remove('open');
+}
+
+function extractReelUrl(input) {
+  // Nettoie l'URL collée (garde juste la partie utile, retire les paramètres de tracking)
+  const match = input.match(/instagram\.com\/(reel|reels|p|tv)\/([A-Za-z0-9_-]+)/);
+  if (!match) return null;
+  return `https://www.instagram.com/${match[1]}/${match[2]}/`;
+}
+
+function addReel() {
+  const input = document.getElementById('reel-url-input');
+  const url = extractReelUrl(input.value.trim());
+  const status = document.getElementById('reel-status');
+
+  if (!url) {
+    status.textContent = 'URL invalide. Colle un lien du type instagram.com/reel/XXXXX';
+    status.style.color = '#e07070';
+    return;
+  }
+  if (savedReels.includes(url)) {
+    status.textContent = 'Ce Reel est déjà dans la liste.';
+    status.style.color = '#e07070';
+    return;
+  }
+
+  savedReels.unshift(url);
+  persistReels();
+  input.value = '';
+  status.textContent = 'Reel ajouté !';
+  status.style.color = '#7fc97f';
+  renderReelsList();
+}
+
+function removeReel(url) {
+  savedReels = savedReels.filter(u => u !== url);
+  persistReels();
+  renderReelsList();
+}
+
+function renderReelsList() {
+  const list = document.getElementById('reels-list');
+  list.innerHTML = '';
+  if (!savedReels.length) {
+    list.innerHTML = '<p style="font-size:12px;color:rgba(255,255,255,0.3);">Aucun Reel ajouté pour le moment.</p>';
+    return;
+  }
+  savedReels.forEach(url => {
+    const item = document.createElement('div');
+    item.className = 'reel-item';
+    item.innerHTML = `<span>${escHtml(url)}</span><button class="reel-remove" onclick="removeReel('${url.replace(/'/g, "\\'")}')">✕</button>`;
+    list.appendChild(item);
+  });
+}
+
+function buildReelEmbedHtml(url) {
+  // Reproduit le blockquote attendu par le script embed.js officiel d'Instagram
+  return `<blockquote class="instagram-media" data-instgrm-permalink="${url}" data-instgrm-version="14" style="margin:0 auto; max-width:100%;"></blockquote>`;
+}
+
+function loadInstagramEmbedScript() {
+  return new Promise((resolve) => {
+    if (window.instgrm) { resolve(); return; }
+    const script = document.createElement('script');
+    script.src = 'https://www.instagram.com/embed.js';
+    script.async = true;
+    script.onload = () => resolve();
+    script.onerror = () => resolve(); // on continue même si ça échoue, le reste du carousel doit tourner
+    document.body.appendChild(script);
+  });
+}
+
+function processInstagramEmbeds() {
+  if (window.instgrm && window.instgrm.Embeds) {
+    window.instgrm.Embeds.process();
+  }
+}
+
+loadReels();
 
 </script>
 </body>
