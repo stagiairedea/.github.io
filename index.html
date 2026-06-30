@@ -65,6 +65,17 @@
   .post-image-wrap { flex:1; min-height:0; border-radius:8px; overflow:hidden; position:relative; background:rgba(255,255,255,0.04); }
   .post-image-wrap img, .post-image-wrap video { width:100%; height:100%; object-fit:cover; display:block; }
   .post-image-wrap::after { content:''; position:absolute; bottom:0; left:0; right:0; height:40%; background:linear-gradient(to top,rgba(26,26,26,0.65) 0%,transparent 100%); pointer-events:none; }
+
+  /* ── REEL EN IFRAME PLEIN ÉCRAN (sans cadre Instagram) ── */
+  .reel-frame-wrap { position:absolute; inset:0; overflow:hidden; background:#000; }
+  .reel-frame {
+    position:absolute;
+    top:50%; left:50%;
+    width:180%; height:180%;
+    transform:translate(-50%,-50%) scale(1.55);
+    border:none;
+    pointer-events:none; /* l'écran est en lecture seule, pas d'interaction tactile sur le widget */
+  }
   .post-caption { flex-shrink:0; background:rgba(255,255,255,0.04); border:1px solid rgba(255,255,255,0.07); border-left:3px solid var(--cuivre); border-radius:0 6px 6px 0; padding:18px 20px; max-height:160px; overflow:hidden; }
   .post-caption-text { font-size:15px; font-weight:300; line-height:1.65; color:rgba(255,255,255,0.8); display:-webkit-box; -webkit-line-clamp:4; -webkit-box-orient:vertical; overflow:hidden; }
   .post-meta { display:flex; align-items:center; justify-content:space-between; margin-top:10px; }
@@ -259,16 +270,19 @@ async function fetchPosts() {
       const textDiv = tmp.querySelectorAll('div')[1] || tmp.querySelectorAll('div')[0];
       const captionText = textDiv ? textDiv.textContent.trim() : tmp.textContent.trim();
       const pubDate = item.querySelector('pubDate')?.textContent || '';
+      const postLink = item.querySelector('link')?.textContent || '';
 
       return {
         media_url: imgUrl,
         caption: captionText,
         timestamp: pubDate,
-        media_type: 'IMAGE'
+        media_type: 'IMAGE',
+        permalink: postLink
       };
-    }).filter(p => p.media_url);
+    }).filter(p => p.media_url)
+      .filter(p => !isLikelyVideoPost(p)); // exclut les Reels/vidéos du RSS (miniature figée), gérés séparément via le panneau Reels
 
-    if (!posts.length) throw new Error('Aucune image exploitable dans le flux.');
+    if (!posts.length) throw new Error('Aucune image exploitable dans le flux (hors vidéos).');
 
     document.getElementById('error-msg').style.display = 'none';
     buildSlides(false);
@@ -314,33 +328,41 @@ function buildSlides(isDemo) {
     dots.appendChild(dot);
   });
 
-  // Charge et traite les embeds Instagram (Reels) après insertion dans le DOM
-  if (loadReels().length > 0) {
-    loadInstagramEmbedScript().then(() => {
-      setTimeout(processInstagramEmbeds, 200);
-    });
-  }
-
   // posts devient la liste combinée pour que le carousel boucle sur tout
   posts = combined.map(e => e.kind === 'rss' ? e.data : { __reel: true });
 }
 
+const REEL_SLIDE_MS = 15000; // durée d'affichage dédiée aux Reels (plus longue qu'une simple photo)
+
 function startCarousel(){
   currentIdx=0; clearInterval(slideTimer);
   showSlide(0);
-  slideTimer=setInterval(nextSlide,SLIDE_MS);
+  scheduleNextSlide();
 }
 function showSlide(idx){
   document.querySelectorAll('.slide').forEach((s,i)=>s.classList.toggle('active',i===idx));
   document.querySelectorAll('.dot').forEach((d,i)=>d.classList.toggle('active',i===idx));
-  animateProgress();
+  animateProgress(currentSlideDuration());
 }
-function nextSlide(){ currentIdx=(currentIdx+1)%posts.length; showSlide(currentIdx); }
-function animateProgress(){
+function currentSlideDuration() {
+  const isReel = posts[currentIdx] && posts[currentIdx].__reel;
+  return isReel ? REEL_SLIDE_MS : SLIDE_MS;
+}
+function scheduleNextSlide() {
+  clearInterval(slideTimer);
+  clearTimeout(slideTimer);
+  slideTimer = setTimeout(nextSlide, currentSlideDuration());
+}
+function nextSlide(){
+  currentIdx=(currentIdx+1)%posts.length;
+  showSlide(currentIdx);
+  scheduleNextSlide();
+}
+function animateProgress(durationMs){
   const fill=document.getElementById('progress-fill');
   fill.style.transition='none'; fill.style.width='0%';
   void fill.offsetWidth;
-  fill.style.transition=`width ${SLIDE_MS}ms linear`; fill.style.width='100%';
+  fill.style.transition=`width ${durationMs}ms linear`; fill.style.width='100%';
 }
 function formatDate(ts){
   if(!ts) return '';
@@ -350,6 +372,16 @@ function formatDate(ts){
 }
 function typeLabel(t){ if(t==='VIDEO')return'▶ Vidéo'; if(t==='CAROUSEL_ALBUM')return'⊞ Carrousel'; return'◻ Photo'; }
 function escHtml(s){ return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;').replace(/>/g,'&gt;'); }
+
+function isLikelyVideoPost(post) {
+  // RSS.app expose les Reels/vidéos via une frame de couverture, repérable dans l'URL miniature
+  // (paramètre "efg" encodé contenant "video_..._cover_frame") et/ou les hashtags #reel(s) dans la légende.
+  const url = (post.media_url || '').toLowerCase();
+  const caption = (post.caption || '').toLowerCase();
+  const hasVideoThumbnailMarker = /video_.*cover_frame|video_default_cover|video_nframe_cover/.test(url);
+  const hasReelHashtag = /#reels?\b/.test(caption);
+  return hasVideoThumbnailMarker || hasReelHashtag;
+}
 
 // ════════════════════════════════════════════════════════
 // GESTION DES REELS (embed natif Instagram, sans API/token)
@@ -432,26 +464,10 @@ function renderReelsList() {
 }
 
 function buildReelEmbedHtml(url) {
-  // Reproduit le blockquote attendu par le script embed.js officiel d'Instagram
-  return `<blockquote class="instagram-media" data-instgrm-permalink="${url}" data-instgrm-version="14" style="margin:0 auto; max-width:100%;"></blockquote>`;
-}
-
-function loadInstagramEmbedScript() {
-  return new Promise((resolve) => {
-    if (window.instgrm) { resolve(); return; }
-    const script = document.createElement('script');
-    script.src = 'https://www.instagram.com/embed.js';
-    script.async = true;
-    script.onload = () => resolve();
-    script.onerror = () => resolve(); // on continue même si ça échoue, le reste du carousel doit tourner
-    document.body.appendChild(script);
-  });
-}
-
-function processInstagramEmbeds() {
-  if (window.instgrm && window.instgrm.Embeds) {
-    window.instgrm.Embeds.process();
-  }
+  // Iframe directe Instagram (sans le widget JS, sans cadre blanc, contrôlable en CSS)
+  // L'URL /embed/ retourne une iframe pure ; on masque l'entête/footer Instagram via un cadrage CSS
+  const embedSrc = url.replace(/\/$/, '') + '/embed/';
+  return `<div class="reel-frame-wrap"><iframe class="reel-frame" src="${embedSrc}" frameborder="0" scrolling="no" allowfullscreen allow="autoplay; encrypted-media"></iframe></div>`;
 }
 
 loadReels();
